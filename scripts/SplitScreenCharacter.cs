@@ -6,7 +6,7 @@ using BmSDK.Engine;
 [Script]
 public class SplitScreenCharacter : Script
 {
-    public override void Main()
+    public override void OnLoad()
     {
         // Load Robin
         Game.LoadPackage("Playable_RobinStoryDLC_SF");
@@ -29,9 +29,9 @@ public class SplitScreenCharacter : Script
         Game.GetGameInfo().MaxPlayersAllowed = 4;
         RGameInfo.DefaultObject.MaxPlayers = 4;
         RGameInfo.DefaultObject.MaxPlayersAllowed = 4;
-
-        base.Main();
     }
+
+    public override void Main() => OnLoad();
 
     public override void OnTick()
     {
