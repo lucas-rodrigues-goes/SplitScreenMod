@@ -288,7 +288,7 @@ public sealed class SplitScreenStreaming : Script
 
     private static bool IsSameCenterVolume(RLevelVolume? left, RLevelVolume? right)
     {
-        if (left == null || right == null)
+        if (left?.Level == null || right?.Level == null)
         {
             return left == right;
         }

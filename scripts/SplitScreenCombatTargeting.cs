@@ -789,7 +789,7 @@ public static class SplitScreenCombatTargeting
         );
     }
 
-    public static void RebalanceCombatAssignmentsFor(RPawnVillain? villain)
+    public static void RebalanceCombatAssignmentsFor(RPawnVillain villain)
     {
         if (!IsSplitScreenActive() || villain?.CombatManager == null)
         {
