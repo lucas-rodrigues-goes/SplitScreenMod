@@ -7,6 +7,16 @@ using ESplitScreenType = BmSDK.Engine.GameViewportClient.ESplitScreenType;
 [Script]
 public class SplitScreen : Script
 {
+    public static SplitScreen Instance { get; private set; } = null!;
+
+    public TomlTable Options => (TomlTable)Mod.Config["options"];
+    public bool UseHorizontalLayout => (bool)Options["layout_horizontal"];
+
+    public SplitScreen()
+    {
+        Instance = this;
+    }
+
     public override void OnKeyDown(Keys key)
     {
         // Debug actions based on key press.
@@ -40,7 +50,7 @@ public class SplitScreen : Script
                 pawn.Rotation = player1.Rotation;
             }
         }
-        else if (key == Keys.N)
+        else if (key == Keys.O)
         {
             var engine = Game.GetEngine();
 
@@ -59,10 +69,12 @@ public class SplitScreen : Script
         var splitType = engine.GamePlayers.Count switch
         {
             1 => ESplitScreenType.eSST_NONE,
-            2 => ESplitScreenType.eSST_2P_VERTICAL,
+            2 => Instance.UseHorizontalLayout
+                ? ESplitScreenType.eSST_2P_HORIZONTAL
+                : ESplitScreenType.eSST_2P_VERTICAL,
             3 => ESplitScreenType.eSST_3P_FAVOR_TOP,
             4 => ESplitScreenType.eSST_4P,
-            _ => self.DesiredSplitscreenType
+            _ => self.DesiredSplitscreenType,
         };
 
         self.ActiveSplitscreenType = splitType;
@@ -81,10 +93,27 @@ public class SplitScreen : Script
             return;
         }
 
+        // For 2-player horizontal, crop sides to maintain 16:9 layout
+        if (
+            engine.GamePlayers.Count == 2
+            && self.ActiveSplitscreenType == ESplitScreenType.eSST_2P_HORIZONTAL
+        )
+        {
+            var p1 = engine.GamePlayers[0];
+            var p2 = engine.GamePlayers[1];
+
+            p1.Size.X = 0.5f;
+            p1.Origin.X = 0.25f;
+            p2.Size.X = 0.5f;
+            p2.Origin.X = 0.25f;
+        }
+
         // Disable RockOn effect (broken in split-screen)
         foreach (var player in engine.GamePlayers)
         {
-            var rockOnEffect = player.PlayerPostProcess.Effects.FirstOrDefault(o => o.Name == "RockOn");
+            var rockOnEffect = player.PlayerPostProcess.Effects.FirstOrDefault(o =>
+                o.Name == "RockOn"
+            );
             rockOnEffect?.bShowInGame = false;
         }
     }
@@ -114,7 +143,8 @@ public class SplitScreen : Script
         Vector3 Pos,
         Rotator Rot,
         bool TellPlayerHesMoved,
-        bool bForSavingOnly)
+        bool bForSavingOnly
+    )
     {
         // Call base for P1
         self.SetPlayerLocation(PC, Pos, Rot, TellPlayerHesMoved, bForSavingOnly);
