@@ -11,6 +11,9 @@ public sealed class SplitScreenStreaming : Script
     private static readonly Dictionary<string, FName> s_extraFullLoads = new(
         StringComparer.OrdinalIgnoreCase
     );
+    private static readonly Dictionary<string, FName> s_extraLODLoads = new(
+        StringComparer.OrdinalIgnoreCase
+    );
     private static readonly Dictionary<int, PlayerCenterState> s_playerCenterStates = [];
 
     public override void OnEnterMenu()
@@ -22,6 +25,7 @@ public sealed class SplitScreenStreaming : Script
     public override void OnEnterGame()
     {
         s_extraFullLoads.Clear();
+        s_extraLODLoads.Clear();
         s_playerCenterStates.Clear();
     }
 
@@ -41,53 +45,127 @@ public sealed class SplitScreenStreaming : Script
         SyncExpandedStreaming(gri);
     }
 
+    // The engine's late/far refresh evicts dynamic actors (roads, NPCs, ...)
+    // from levels deemed too far from the (single) player. With split-screen,
+    // "far from P1" can still be "right next to P2", so we suppress the refresh
+    // entirely while a second player is active. This replaces the old approach
+    // of mutating bAllowLateAndFarLevelRefresh, which got captured in saves.
+    [Redirect(typeof(RGameRI), nameof(RGameRI.RefreshLateAndFarLevels))]
+    private static void RefreshLateAndFarLevelsRedirect(RGameRI self)
+    {
+        var engine = Game.GetEngine();
+        if (engine != null && engine.GamePlayers.Count > 1)
+        {
+            return;
+        }
+
+        self.RefreshLateAndFarLevels();
+    }
+
     private static void SyncExpandedStreaming(RGameRI gri)
     {
-        var desired = new Dictionary<string, DesiredStreamingRequest>(
+        var desiredFull = new Dictionary<string, DesiredStreamingRequest>(
             StringComparer.OrdinalIgnoreCase
         );
-        AddDesiredRequestsForVolumes(desired, GetPlayerCenterVolumes(gri));
+        var desiredLOD = new Dictionary<string, DesiredStreamingRequest>(
+            StringComparer.OrdinalIgnoreCase
+        );
 
+        foreach (var volume in GetExtraCenterVolumes(gri))
+        {
+            AddDesiredRequest(desiredFull, volume.Level, [], 0.0f);
+            AddDesiredVisibleInfos(desiredFull, volume.OtherLevelsVisibleInfo);
+            AddDesiredVisibleInfos(desiredLOD, volume.OtherLevelLODsVisibleInfo);
+        }
+
+        // A level requested at full detail subsumes a LOD request for the same
+        // level; never ask for both or the engine ends up with two originators
+        // fighting over the same streaming entry.
+        foreach (var levelKey in new List<string>(desiredLOD.Keys))
+        {
+            if (desiredFull.ContainsKey(levelKey))
+            {
+                desiredLOD.Remove(levelKey);
+            }
+        }
+
+        var fullDelta = SyncRequests(gri, s_extraFullLoads, desiredFull, isLOD: false);
+        var lodDelta = SyncRequests(gri, s_extraLODLoads, desiredLOD, isLOD: true);
+
+        if (fullDelta.Added + fullDelta.Removed + lodDelta.Added + lodDelta.Removed > 0)
+        {
+            Debug.Log(
+                $"Split-screen streaming sync: full +{fullDelta.Added}/-{fullDelta.Removed} "
+                    + $"({s_extraFullLoads.Count}), LOD +{lodDelta.Added}/-{lodDelta.Removed} "
+                    + $"({s_extraLODLoads.Count})"
+            );
+        }
+    }
+
+    private static (int Added, int Removed) SyncRequests(
+        RGameRI gri,
+        Dictionary<string, FName> active,
+        Dictionary<string, DesiredStreamingRequest> desired,
+        bool isLOD
+    )
+    {
         var removed = 0;
-        foreach (var levelKey in new List<string>(s_extraFullLoads.Keys))
+        foreach (var levelKey in new List<string>(active.Keys))
         {
             if (desired.ContainsKey(levelKey))
             {
                 continue;
             }
 
-            gri.RemoveStreamingLevelRequest(s_extraFullLoads[levelKey], gri);
-            s_extraFullLoads.Remove(levelKey);
+            var levelName = active[levelKey];
+            if (isLOD)
+            {
+                gri.RemoveStreamingLevelLODRequest(levelName, gri);
+            }
+            else
+            {
+                gri.RemoveStreamingLevelRequest(levelName, gri);
+            }
+
+            active.Remove(levelKey);
             removed++;
         }
 
         var added = 0;
         foreach (var (levelKey, request) in desired)
         {
-            if (s_extraFullLoads.ContainsKey(levelKey))
+            if (active.ContainsKey(levelKey))
             {
                 continue;
             }
 
-            gri.AddStreamingLevelRequest(
-                request.LevelName,
-                gri,
-                false,
-                Vector3.Zero,
-                request.Borders,
-                request.RoadHeight
-            );
+            if (isLOD)
+            {
+                gri.AddStreamingLevelLODRequest(
+                    request.LevelName,
+                    gri,
+                    false,
+                    Vector3.Zero,
+                    request.Borders
+                );
+            }
+            else
+            {
+                gri.AddStreamingLevelRequest(
+                    request.LevelName,
+                    gri,
+                    false,
+                    Vector3.Zero,
+                    request.Borders,
+                    request.RoadHeight
+                );
+            }
 
-            s_extraFullLoads[levelKey] = request.LevelName;
+            active[levelKey] = request.LevelName;
             added++;
         }
 
-        if (added > 0 || removed > 0)
-        {
-            Debug.Log(
-                $"Split-screen streaming sync: +{added}, -{removed}, active={s_extraFullLoads.Count}"
-            );
-        }
+        return (added, removed);
     }
 
     private static bool HasStreamingContext(RGameRI gri)
@@ -110,21 +188,26 @@ public sealed class SplitScreenStreaming : Script
         return false;
     }
 
-    private static List<PlayerCenterVolume> GetPlayerCenterVolumes(RGameRI gri)
+    private static List<RLevelVolume> GetExtraCenterVolumes(RGameRI gri)
     {
-        var centerVolumes = new Dictionary<string, PlayerCenterVolume>(
-            StringComparer.OrdinalIgnoreCase
-        );
+        var byLevel = new Dictionary<string, RLevelVolume>(StringComparer.OrdinalIgnoreCase);
         var engine = Game.GetEngine();
         if (engine == null)
         {
             return [];
         }
 
-        for (var i = 0; i < engine.GamePlayers.Count; i++)
+        // P1's center is handled by the engine's normal streaming machinery, so
+        // we don't add it ourselves. We still resolve P1's volume so any other
+        // player sharing it gets filtered out below (no need to duplicate).
+        var p1Pawn = engine.GamePlayers.Count > 0 ? engine.GamePlayers[0]?.Actor?.Pawn : null;
+        var p1Volume = p1Pawn != null && p1Pawn.Health > 0
+            ? FindPlayerCenterVolume(gri, p1Pawn)
+            : null;
+
+        for (var i = 1; i < engine.GamePlayers.Count; i++)
         {
-            var player = engine.GamePlayers[i];
-            var pawn = player?.Actor?.Pawn;
+            var pawn = engine.GamePlayers[i]?.Actor?.Pawn;
             if (pawn == null || pawn.Health <= 0)
             {
                 continue;
@@ -137,24 +220,19 @@ public sealed class SplitScreenStreaming : Script
                 continue;
             }
 
-            // P1 already gets the inner ring naturally; only widen for P2+.
-            var includeOuterRing = i > 0;
-            var levelKey = volume.Level.ToString();
-
-            if (centerVolumes.TryGetValue(levelKey, out var existing))
+            if (p1Volume != null && volume.Level == p1Volume.Level)
             {
-                if (includeOuterRing && !existing.IncludeOuterRing)
-                {
-                    centerVolumes[levelKey] = new PlayerCenterVolume(volume, true);
-                }
-
                 continue;
             }
 
-            centerVolumes[levelKey] = new PlayerCenterVolume(volume, includeOuterRing);
+            var levelKey = volume.Level.ToString();
+            if (!byLevel.ContainsKey(levelKey))
+            {
+                byLevel[levelKey] = volume;
+            }
         }
 
-        return [.. centerVolumes.Values];
+        return [.. byLevel.Values];
     }
 
     private static RLevelVolume? FindPlayerCenterVolume(RGameRI gri, Pawn pawn)
@@ -248,34 +326,29 @@ public sealed class SplitScreenStreaming : Script
         return volume.IsOverworldVolume() && volume.bUsedByLevelVisibilityVolume;
     }
 
-    private static void AddDesiredRequestsForVolumes(
-        Dictionary<string, DesiredStreamingRequest> desired,
-        List<PlayerCenterVolume> centerVolumes
-    )
-    {
-        foreach (var center in centerVolumes)
-        {
-            var volume = center.Volume;
-
-            AddDesiredRequest(desired, volume.Level, [], 0.0f);
-            AddDesiredRequestsFromVisibleInfos(desired, volume.OtherLevelsVisibleInfo);
-
-            if (center.IncludeOuterRing)
-            {
-                AddDesiredRequestsFromVisibleInfos(desired, volume.OtherLevelLODsVisibleInfo);
-            }
-        }
-    }
-
-    private static void AddDesiredRequestsFromVisibleInfos(
+    private static void AddDesiredVisibleInfos(
         Dictionary<string, DesiredStreamingRequest> desired,
         TArray<RLevelVolume.FVisibleLevelInfo> infos
     )
     {
         foreach (var info in infos)
         {
-            AddDesiredRequest(desired, info.LevelName, info.Borders, info.RoadHeight);
+            // The engine retains the Borders TArray we pass to Add*Request, so
+            // we must hand it a managed copy — the volume-owned source can be
+            // reallocated out from under it and dereferenced as garbage later.
+            AddDesiredRequest(desired, info.LevelName, CloneBorders(info.Borders), info.RoadHeight);
         }
+    }
+
+    private static TArray<RGameRI.FBorderInfo> CloneBorders(TArray<RGameRI.FBorderInfo> source)
+    {
+        var copy = new TArray<RGameRI.FBorderInfo>(source.Count);
+        for (var i = 0; i < source.Count; i++)
+        {
+            copy[i] = source[i];
+        }
+
+        return copy;
     }
 
     private static void AddDesiredRequest(
@@ -307,9 +380,15 @@ public sealed class SplitScreenStreaming : Script
             {
                 gri.RemoveStreamingLevelRequest(levelName, gri);
             }
+
+            foreach (var levelName in s_extraLODLoads.Values)
+            {
+                gri.RemoveStreamingLevelLODRequest(levelName, gri);
+            }
         }
 
         s_extraFullLoads.Clear();
+        s_extraLODLoads.Clear();
         s_playerCenterStates.Clear();
     }
 
@@ -324,6 +403,4 @@ public sealed class SplitScreenStreaming : Script
         RLevelVolume? PendingVolume,
         int PendingTicks
     );
-
-    private readonly record struct PlayerCenterVolume(RLevelVolume Volume, bool IncludeOuterRing);
 }
