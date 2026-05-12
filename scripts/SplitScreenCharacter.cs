@@ -1,4 +1,4 @@
-﻿using BmSDK;
+using BmSDK;
 using BmSDK.BmGame;
 using BmSDK.BmScript;
 using BmSDK.Engine;
@@ -6,32 +6,39 @@ using BmSDK.Engine;
 [Script]
 public class SplitScreenCharacter : Script
 {
-    public override void OnLoad()
+    public override void Main()
     {
-        // Load Robin
-        Game.LoadPackage("Playable_RobinStoryDLC_SF");
-        Game.FindObject<RAddContentPlayerCharacter>(
-                    "Playable_RobinStoryDLC.Playable_RobinStoryDLC"
-                )!
-            .AddToRoot();
-
-        // Load Catwoman
-        Game.LoadPackage("Playable_Catwoman_SF");
-        Game.FindObject<RAddContentPlayerCharacter>("Playable_Catwoman.Playable_Catwoman")!
-            .AddToRoot();
-
-        // Load Nightwing
-        Game.LoadPackage("Playable_Nightwing_SF");
-        Game.FindObject<RAddContentPlayerCharacter>("Playable_Nightwing.Playable_Nightwing")!
-            .AddToRoot();
-
-        Game.GetGameInfo().MaxPlayers = 4;
-        Game.GetGameInfo().MaxPlayersAllowed = 4;
         RGameInfo.DefaultObject.MaxPlayers = 4;
         RGameInfo.DefaultObject.MaxPlayersAllowed = 4;
-    }
 
-    public override void Main() => OnLoad();
+        var options = SplitScreen.Instance.Options;
+        var playerConfigs = (TomlArray)options["players"];
+
+        // Assign player slots from config
+        for (var i = 0; i < playerConfigs.Count; i++)
+        {
+            var playerConfig = (TomlArray)playerConfigs[i]!;
+            var characterName = (string)playerConfig[0]!;
+            var meshName = $"{characterName}_{(string)playerConfig[1]!}";
+
+            // Load packages
+            Game.LoadPackage($"{characterName}_SF");
+            Game.LoadPackage($"{meshName}_SF");
+
+            // Set PlayerCharacters in CDO
+            RGameRI.DefaultObject.PlayerCharacters[i] = new RGameRI.FLoadedPlayerCharacter()
+            {
+                CharacterName = characterName,
+                MeshName = meshName,
+                CharacterData = Game.FindObject<RAddContentPlayerCharacter>(
+                    $"{characterName}.{characterName}"
+                ),
+                MeshData = Game.FindObject<RAddContentPlayerCharacterMesh>(
+                    $"{meshName}.{meshName}"
+                ),
+            };
+        }
+    }
 
     public override void OnTick()
     {
@@ -41,49 +48,12 @@ public class SplitScreenCharacter : Script
     }
 
     [ScriptComponent(AutoAttach = true)]
-    class GameRIComponent : ScriptComponent<RGameRI>
-    {
-        [ComponentRedirect("PreBeginPlay")]
-        public void PreBeginPlay()
-        {
-            Owner.PreBeginPlay();
-
-            // Set P2 to Robin
-            Owner.PlayerCharacters_1 = new RGameRI.FLoadedPlayerCharacter()
-            {
-                CharacterName = "Playable_RobinStoryDLC",
-                DamageLevel = 0,
-            };
-
-            // Set P3 to Catwoman
-            Owner.PlayerCharacters_2 = new RGameRI.FLoadedPlayerCharacter()
-            {
-                CharacterName = "Playable_Catwoman",
-                DamageLevel = 0,
-            };
-
-            // Set P4 to Nightwing
-            Owner.PlayerCharacters_3 = new RGameRI.FLoadedPlayerCharacter()
-            {
-                CharacterName = "Playable_Nightwing",
-                DamageLevel = 0,
-            };
-        }
-    }
-
-    [ScriptComponent(AutoAttach = true)]
     class GameInfoComponent : ScriptComponent<RGameInfo>
     {
-        [ComponentRedirect(nameof(RGameInfo.GetDefaultPlayerClass))]
-        public Class GetDefaultPlayerClass(Controller C)
+        [ComponentRedirect(nameof(RGameInfo.GetPlayerCharacterIndex))]
+        public int GetPlayerCharacterIndex(Controller C)
         {
-            return C.PlayerNum switch
-            {
-                1 => RPawnPlayerRobinStoryDLC.StaticClass(),
-                2 => RPawnPlayerCatwoman.StaticClass(),
-                3 => RPawnPlayerNightwing.StaticClass(),
-                _ => Owner.GetDefaultPlayerClass(C),
-            };
+            return C.PlayerNum;
         }
     }
 }

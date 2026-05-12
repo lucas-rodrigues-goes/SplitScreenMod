@@ -47,12 +47,12 @@ public sealed class SplitScreenHUD : Script
                 (int)Math.Round(originPixels.X),
                 (int)Math.Round(originPixels.Y),
                 (int)Math.Round(sizePixels.X),
-                (int)Math.Round(sizePixels.Y));
+                (int)Math.Round(sizePixels.Y)
+            );
         }
 
         base.OnTick();
     }
-
 
     [Redirect(typeof(RGFxMovie), nameof(RGFxMovie.Init))]
     private static void RGFxMovie_InitRedirect(RGFxMovie self, LocalPlayer locPlay)
@@ -90,7 +90,8 @@ public sealed class SplitScreenHUD : Script
         RHudExtensionHealth self,
         RPlayerController rpc,
         FString extensionName,
-        FString extensionPath)
+        FString extensionPath
+    )
     {
         self.PlayerSideIndex = rpc.HudMovieSide;
         return self.Init(rpc, extensionName, extensionPath);
@@ -123,10 +124,7 @@ public sealed class SplitScreenHUD : Script
             return;
         }
 
-        var hud = new RGFxMovieHudExtendable(self)
-        {
-            MovieInfo = movieInfo
-        };
+        var hud = new RGFxMovieHudExtendable(self) { MovieInfo = movieInfo };
         hud.Start(false);
         hud.Init(localPlayer);
         hud.Advance(0.0f);
@@ -137,12 +135,9 @@ public sealed class SplitScreenHUD : Script
         self.HudMovieSide = 0;
 
         hud.CharacterAcronyms[0] = ownAcronym;
-        if (gri.IsMultiplayer())
+        if (gri!.IsMultiplayer())
         {
-            var otherAcronym = GetCharacterAcronym(
-                gri,
-                multiplayerIndex == 0 ? 1 : 0
-            );
+            var otherAcronym = GetCharacterAcronym(gri, multiplayerIndex == 0 ? 1 : 0);
             if (otherAcronym != null)
             {
                 hud.CharacterAcronyms[1] = otherAcronym;
@@ -186,25 +181,19 @@ public sealed class SplitScreenHUD : Script
         var general = new RHudExtensionGeneral(self);
         general.Init(self, "General", "StoryModeHUD.HUD");
 
-        var health = new RHudExtensionHealth(self)
-        {
-            PlayerSideIndex = self.HudMovieSide
-        };
+        var health = new RHudExtensionHealth(self) { PlayerSideIndex = self.HudMovieSide };
         health.Init(self, "HealthBar", "ModuleHealthBar");
 
         if (!string.Equals(acronym, "BW", StringComparison.OrdinalIgnoreCase))
         {
-            var gadgets = new RHudExtensionGadgets(self)
-            {
-                PlayerSideIndex = self.HudMovieSide
-            };
+            var gadgets = new RHudExtensionGadgets(self) { PlayerSideIndex = self.HudMovieSide };
             gadgets.Init(self, "GadgetSelect", $"ModuleGadgetSelect{acronym}");
+
+            // Set this manually
+            gadgets.SetGadgetIconName($"Icons_{acronym}");
         }
 
-        var targets = new RHudExtensionTargets(self)
-        {
-            PlayerSideIndex = self.HudMovieSide
-        };
+        var targets = new RHudExtensionTargets(self) { PlayerSideIndex = self.HudMovieSide };
         targets.Init(self, "Targets", $"ModuleTargets{acronym}");
     }
 
@@ -214,7 +203,8 @@ public sealed class SplitScreenHUD : Script
         out int multiplayerIndex,
         out LocalPlayer? localPlayer,
         out RGameRI? gri,
-        out string? characterAcronym)
+        out string? characterAcronym
+    )
     {
         splitIndex = 0;
         multiplayerIndex = 0;
