@@ -244,7 +244,7 @@ public sealed class SplitScreenCombat : Script
             return;
         }
 
-        SplitScreenCombatTargeting.RebalanceCombatAssignmentsFor(villain);
+        SplitScreenCombatGrouping.RebalanceCombatAssignmentsFor(villain);
     }
 
     private static void RefreshIdleVillainTargets()
@@ -458,7 +458,7 @@ public sealed class SplitScreenCombat : Script
         }
 
         TickExtraPlayerRoomStates(self, deltaTime);
-        SplitScreenCombatTargeting.RebalanceActiveCombatAssignments();
+        SplitScreenCombatGrouping.RebalanceActiveCombatAssignments();
         RefreshIdleVillainTargets();
     }
 
