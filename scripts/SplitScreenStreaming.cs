@@ -42,32 +42,47 @@ public sealed class SplitScreenStreaming : Script
 
     private static void RefreshLateAndFarLevelsDetour(IntPtr self)
     {
-        // Let the original run so P1's _Late/_FAR flags are managed correctly
-        // when CurrentLevel changes. We re-assert flags for P2+ afterwards.
+        var engine = Game.GetEngine();
+        var worldInfo = Game.GetWorldInfo();
+        if (engine == null || worldInfo == null || engine.GamePlayers.Count <= 1)
+        {
+            _refreshLateAndFarLevelsOriginal!.Invoke(self);
+            return;
+        }
+
+        // Snapshot _Late/_FAR flags -- ones that were true are chapter-correct
+        // (kismet enabled them). Skipping false ones avoids enabling
+        // wrong-chapter variants that would overlay the correct mesh.
+        var preState = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+        foreach (var ls in worldInfo.StreamingLevels)
+        {
+            if (ls == null)
+            {
+                continue;
+            }
+            var name = ls.PackageName.ToString();
+            if (!string.IsNullOrEmpty(name) && IsLateOrFarVariant(name))
+            {
+                preState[name] = ls.bShouldBeLoaded;
+            }
+        }
+
         _refreshLateAndFarLevelsOriginal!.Invoke(self);
 
-        var engine = Game.GetEngine();
-        if (engine == null || engine.GamePlayers.Count <= 1)
-        {
-            return;
-        }
-
         var gri = Game.GetGameRI();
-        var worldInfo = Game.GetWorldInfo();
-        if (gri == null || worldInfo == null)
+        if (gri == null)
         {
             return;
         }
 
-        var interests = CollectExtraPlayerInterests(gri, engine);
-        if (interests.Count == 0)
+        // Mirror vanilla's "BaseLevel == P1.CurrentLevel" rule for P2+:
+        // only the cell P2 is actually standing in needs _Late/_FAR re-asserted.
+        var currentLevels = CollectExtraPlayerCurrentLevels(gri, engine);
+        if (currentLevels.Count == 0)
         {
             return;
         }
 
-        // Same-frame fix-up: the engine just cleared bits on variants whose
-        // BaseLevel didn't match P1's CurrentLevel. Set them back for P2+'s
-        // interests before UpdateLevelStreaming reads the result.
         foreach (var ls in worldInfo.StreamingLevels)
         {
             if (ls == null)
@@ -81,7 +96,12 @@ public sealed class SplitScreenStreaming : Script
                 continue;
             }
 
-            foreach (var interest in interests)
+            if (!preState.TryGetValue(name, out var wasLoaded) || !wasLoaded)
+            {
+                continue;
+            }
+
+            foreach (var interest in currentLevels)
             {
                 if (name.Length > interest.Length
                     && name[interest.Length] == '_'
@@ -102,9 +122,9 @@ public sealed class SplitScreenStreaming : Script
             || name.IndexOf("_far", StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
-    private static HashSet<string> CollectExtraPlayerInterests(RGameRI gri, GameEngine engine)
+    private static HashSet<string> CollectExtraPlayerCurrentLevels(RGameRI gri, GameEngine engine)
     {
-        var interests = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var levels = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         for (var i = 1; i < engine.GamePlayers.Count; i++)
         {
@@ -120,27 +140,14 @@ public sealed class SplitScreenStreaming : Script
                 continue;
             }
 
-            AddInterest(interests, volume.Level);
-            foreach (var info in volume.OtherLevelsVisibleInfo)
+            var name = volume.Level.ToString();
+            if (!string.IsNullOrEmpty(name) && !name.Equals("None", StringComparison.OrdinalIgnoreCase))
             {
-                AddInterest(interests, info.LevelName);
-            }
-            foreach (var info in volume.OtherLevelLODsVisibleInfo)
-            {
-                AddInterest(interests, info.LevelName);
+                levels.Add(name);
             }
         }
 
-        return interests;
-    }
-
-    private static void AddInterest(HashSet<string> interests, FName name)
-    {
-        var s = name.ToString();
-        if (!string.IsNullOrEmpty(s) && !s.Equals("None", StringComparison.OrdinalIgnoreCase))
-        {
-            interests.Add(s);
-        }
+        return levels;
     }
 
     private static void SyncExpandedStreaming(RGameRI gri, WorldInfo originator)
