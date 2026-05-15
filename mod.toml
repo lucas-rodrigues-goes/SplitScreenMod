@@ -15,10 +15,6 @@ keep_alive = [
 layout_horizontal = false
 players = [
     [
-        "Playable_Batman",
-        "Std",
-    ],
-    [
         "Playable_RobinStoryDLC",
         "Std",
     ],

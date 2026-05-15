@@ -27,7 +27,7 @@ public class SplitScreenCharacter : Script
             Game.LoadPackage($"{meshName}_SF");
 
             // Set PlayerCharacters in CDO
-            RGameRI.DefaultObject.PlayerCharacters[i] = new RGameRI.FLoadedPlayerCharacter()
+            RGameRI.DefaultObject.PlayerCharacters[i + 1] = new RGameRI.FLoadedPlayerCharacter()
             {
                 CharacterName = characterName,
                 MeshName = meshName,
