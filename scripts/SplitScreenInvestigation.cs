@@ -6,6 +6,16 @@ using BmSDK.GFxUI;
 [Script]
 public sealed class SplitScreenInvestigation : Script
 {
+    // Disable detective mode sprites in split-screen
+    [Redirect(typeof(RBMPawnAI), nameof(RBMPawnAI.PostInitCharacter))]
+    private static void PostInitCharacterRedirect(RBMPawnAI self)
+    {
+        self.PostInitCharacter();
+        self.bUseXRaySprite = false;
+        self.bDisableXRaySprite = true;
+        self.bAllowMeshHidingFromXrayAlpha = false;
+    }
+
     [Redirect(typeof(RPlayerController), nameof(RPlayerController.StartInvestigateMovie))]
     private static void StartInvestigateMovieRedirect(RPlayerController self)
     {
