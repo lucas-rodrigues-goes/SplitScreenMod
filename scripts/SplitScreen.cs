@@ -28,15 +28,6 @@ public class SplitScreen : Script
             var gameViewport = Game.GetGameViewportClient();
             gameViewport.CreatePlayer(engine.GamePlayers.Count, out _, true);
         }
-        else if (key == Keys.L)
-        {
-            // SSwapControllers
-            var engine = Game.GetEngine();
-            foreach (var player in engine.GamePlayers)
-            {
-                player.ControllerId = (player.ControllerId + 1) % engine.GamePlayers.Count;
-            }
-        }
         else if (key == Keys.T)
         {
             var player1 = Game.GetPlayerPawn(0);
