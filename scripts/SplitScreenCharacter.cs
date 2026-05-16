@@ -15,13 +15,20 @@ public class SplitScreenCharacter : Script
         {
             Owner.PreBeginPlay();
 
-            var playerConfigs = (TomlArray)SplitScreen.Instance.Options["players"];
+            var options = SplitScreen.Instance.Options;
+            var playerConfigs = (TomlArray)options["players"];
+
+            // Assign player slots from config
             for (var i = 0; i < playerConfigs.Count; i++)
             {
                 var playerConfig = (TomlArray)playerConfigs[i]!;
+                var characterName = (string)playerConfig[0]!;
+                var meshName = $"{characterName}_{(string)playerConfig[1]!}";
+
                 Owner.PlayerCharacters[i + 1] = new RGameRI.FLoadedPlayerCharacter()
                 {
                     CharacterName = (string)playerConfig[0]!,
+                    MeshName = meshName,
                 };
             }
         }
