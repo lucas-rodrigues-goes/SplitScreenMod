@@ -7,34 +7,23 @@ using BmSDK.Engine;
 [Script]
 public class SplitScreenCharacter : Script
 {
-    public override void Main()
+    [ScriptComponent(AutoAttach = true)]
+    class GameRIComponent : ScriptComponent<RGameRI>
     {
-        var options = SplitScreen.Instance.Options;
-        var playerConfigs = (TomlArray)options["players"];
-
-        // Assign player slots from config
-        for (var i = 0; i < playerConfigs.Count; i++)
+        [ComponentRedirect(nameof(RGameRI.PreBeginPlay))]
+        public void PreBeginPlay()
         {
-            var playerConfig = (TomlArray)playerConfigs[i]!;
-            var characterName = (string)playerConfig[0]!;
-            var meshName = $"{characterName}_{(string)playerConfig[1]!}";
+            Owner.PreBeginPlay();
 
-            // Load packages
-            Game.LoadPackage($"{characterName}_SF");
-            Game.LoadPackage($"{meshName}_SF");
-
-            // Set PlayerCharacters in CDO
-            RGameRI.DefaultObject.PlayerCharacters[i + 1] = new RGameRI.FLoadedPlayerCharacter()
+            var playerConfigs = (TomlArray)SplitScreen.Instance.Options["players"];
+            for (var i = 0; i < playerConfigs.Count; i++)
             {
-                CharacterName = characterName,
-                MeshName = meshName,
-                CharacterData = Game.FindObject<RAddContentPlayerCharacter>(
-                    $"{characterName}.{characterName}"
-                ),
-                MeshData = Game.FindObject<RAddContentPlayerCharacterMesh>(
-                    $"{meshName}.{meshName}"
-                ),
-            };
+                var playerConfig = (TomlArray)playerConfigs[i]!;
+                Owner.PlayerCharacters[i + 1] = new RGameRI.FLoadedPlayerCharacter()
+                {
+                    CharacterName = (string)playerConfig[0]!,
+                };
+            }
         }
     }
 
@@ -44,12 +33,12 @@ public class SplitScreenCharacter : Script
         [ComponentRedirect(nameof(RGameInfo.GetPlayerCharacterIndex))]
         public int GetPlayerCharacterIndex(Controller C)
         {
-            if (C is RPlayerController rpc)
+            if (C is RPlayerController rpc && rpc.IsSplitscreenPlayer(out _))
             {
                 return rpc.GetMultiplayerIndex();
             }
 
-            return GetPlayerCharacterIndex(C);
+            return Owner.GetPlayerCharacterIndex(C);
         }
     }
 }
