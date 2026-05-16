@@ -44,7 +44,12 @@ public class SplitScreenCharacter : Script
         [ComponentRedirect(nameof(RGameInfo.GetPlayerCharacterIndex))]
         public int GetPlayerCharacterIndex(Controller C)
         {
-            return C.PlayerNum;
+            if (C is RPlayerController rpc)
+            {
+                return rpc.GetMultiplayerIndex();
+            }
+
+            return GetPlayerCharacterIndex(C);
         }
     }
 }

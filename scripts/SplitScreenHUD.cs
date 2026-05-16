@@ -130,15 +130,15 @@ public sealed class SplitScreenHUD : Script
         hud.Init(localPlayer);
         hud.Advance(0.0f);
         hud.SetFocus(false, false);
-        hud.SetViewportSplitscreenIndex(self.PlayerNum);
+        hud.SetViewportSplitscreenIndex(multiplayerIndex);
 
         self.HudMovieNew = hud;
-        self.HudMovieSide = self.PlayerNum;
+        self.HudMovieSide = 0;
 
         hud.CharacterAcronyms[0] = ownAcronym;
         if (gri!.IsMultiplayer())
         {
-            var otherAcronym = GetCharacterAcronym(gri, self.PlayerNum == 0 ? 1 : 0);
+            var otherAcronym = GetCharacterAcronym(gri, multiplayerIndex == 0 ? 1 : 0);
             if (otherAcronym != null)
             {
                 hud.CharacterAcronyms[1] = otherAcronym;
