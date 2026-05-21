@@ -40,114 +40,18 @@ public sealed class SplitScreenStreaming : Script
         SyncExpandedStreaming(gri, worldInfo);
     }
 
+    // The engine's late/far refresh evicts dynamic actors from levels deemed too
+    // far from the (single) player. With split-screen, "far from P1" can still be
+    // "right next to P2", so we suppress the refresh while a second player exists.
     private static void RefreshLateAndFarLevelsDetour(IntPtr self)
     {
         var engine = Game.GetEngine();
-        var worldInfo = Game.GetWorldInfo();
-        if (engine == null || worldInfo == null || engine.GamePlayers.Count <= 1)
+        if (engine != null && engine.GamePlayers.Count > 1)
         {
-            _refreshLateAndFarLevelsOriginal!.Invoke(self);
             return;
-        }
-
-        // Snapshot _Late/_FAR flags -- ones that were true are chapter-correct
-        // (kismet enabled them). Skipping false ones avoids enabling
-        // wrong-chapter variants that would overlay the correct mesh.
-        var preState = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
-        foreach (var ls in worldInfo.StreamingLevels)
-        {
-            if (ls == null)
-            {
-                continue;
-            }
-            var name = ls.PackageName.ToString();
-            if (!string.IsNullOrEmpty(name) && IsLateOrFarVariant(name))
-            {
-                preState[name] = ls.bShouldBeLoaded;
-            }
         }
 
         _refreshLateAndFarLevelsOriginal!.Invoke(self);
-
-        var gri = Game.GetGameRI();
-        if (gri == null)
-        {
-            return;
-        }
-
-        // Mirror vanilla's "BaseLevel == P1.CurrentLevel" rule for P2+:
-        // only the cell P2 is actually standing in needs _Late/_FAR re-asserted.
-        var currentLevels = CollectExtraPlayerCurrentLevels(gri, engine);
-        if (currentLevels.Count == 0)
-        {
-            return;
-        }
-
-        foreach (var ls in worldInfo.StreamingLevels)
-        {
-            if (ls == null)
-            {
-                continue;
-            }
-
-            var name = ls.PackageName.ToString();
-            if (string.IsNullOrEmpty(name) || !IsLateOrFarVariant(name))
-            {
-                continue;
-            }
-
-            if (!preState.TryGetValue(name, out var wasLoaded) || !wasLoaded)
-            {
-                continue;
-            }
-
-            foreach (var interest in currentLevels)
-            {
-                if (name.Length > interest.Length
-                    && name[interest.Length] == '_'
-                    && name.StartsWith(interest, StringComparison.OrdinalIgnoreCase))
-                {
-                    ls.bShouldBeLoaded = true;
-                    ls.bShouldBeVisible = true;
-                    ls.bHighPriorityLoadRequest = true;
-                    break;
-                }
-            }
-        }
-    }
-
-    private static bool IsLateOrFarVariant(string name)
-    {
-        return name.IndexOf("_late", StringComparison.OrdinalIgnoreCase) >= 0
-            || name.IndexOf("_far", StringComparison.OrdinalIgnoreCase) >= 0;
-    }
-
-    private static HashSet<string> CollectExtraPlayerCurrentLevels(RGameRI gri, GameEngine engine)
-    {
-        var levels = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        for (var i = 1; i < engine.GamePlayers.Count; i++)
-        {
-            var pawn = engine.GamePlayers[i]?.Actor?.Pawn;
-            if (pawn == null || pawn.Health <= 0)
-            {
-                continue;
-            }
-
-            var volume = FindPlayerCenterVolume(gri, pawn);
-            if (volume == null)
-            {
-                continue;
-            }
-
-            var name = volume.Level.ToString();
-            if (!string.IsNullOrEmpty(name) && !name.Equals("None", StringComparison.OrdinalIgnoreCase))
-            {
-                levels.Add(name);
-            }
-        }
-
-        return levels;
     }
 
     private static void SyncExpandedStreaming(RGameRI gri, WorldInfo originator)
