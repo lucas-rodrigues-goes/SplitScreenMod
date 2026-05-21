@@ -36,7 +36,7 @@ public sealed class SplitScreenHUD : Script
         foreach (var player in engine.GamePlayers)
         {
             var controller = player.Actor as RPlayerController;
-            if (controller?.HudMovieNew == null)
+            if (controller == null)
             {
                 continue;
             }
@@ -44,15 +44,40 @@ public sealed class SplitScreenHUD : Script
             var originPixels = player.Origin * viewportSize;
             var sizePixels = player.Size * viewportSize;
 
-            controller.HudMovieNew.SetViewport(
-                (int)Math.Round(originPixels.X),
-                (int)Math.Round(originPixels.Y),
-                (int)Math.Round(sizePixels.X),
-                (int)Math.Round(sizePixels.Y)
-            );
+            var x = (int)Math.Round(originPixels.X);
+            var y = (int)Math.Round(originPixels.Y);
+            var w = (int)Math.Round(sizePixels.X);
+            var h = (int)Math.Round(sizePixels.Y);
+
+            controller.HudMovieNew?.SetViewport(x, y, w, h);
+
+            if (controller.MinigameMovie != null)
+            {
+                controller.MinigameMovie.SetViewport(x, y, w, h);
+
+                // Sequencer now renders flat over the player's viewport instead
+                // of onto Batman's in-world hologram — keep that mesh hidden.
+                var tuner = (controller.Pawn as RPawnPlayer)?.ResonatorTuner;
+                tuner?.ScreenHologram?.SetHidden(true);
+                tuner?.ScreenHologramMesh?.SetHidden(true);
+            }
         }
 
         base.OnTick();
+    }
+
+    // Force the cryptographic sequencer to render as a flat overlay instead of
+    // onto the in-world hologram texture — sidesteps splitscreen stage-size
+    // issues that broke the password cracker for P2.
+    [Redirect(typeof(RGFxMovieResonatorMinigame), nameof(RGFxMovieResonatorMinigame.Init))]
+    private static void RGFxMovieResonatorMinigame_InitRedirect(
+        RGFxMovieResonatorMinigame self,
+        LocalPlayer locPlay
+    )
+    {
+        self.bWorldRendered = false;
+        self.RenderTexture = null!;
+        self.Init(locPlay);
     }
 
     [Redirect(typeof(RGFxMovie), nameof(RGFxMovie.Init))]
