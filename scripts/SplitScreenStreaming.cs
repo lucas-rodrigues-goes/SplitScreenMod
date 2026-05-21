@@ -9,6 +9,7 @@ using BmSDK.Engine;
 public sealed class SplitScreenStreaming : Script
 {
     public const IntPtr RefreshLateAndFarLevelsOffset = 0x85A510;
+    public const IntPtr OctreeCapacityCallSiteOffset = 0x4B2C2A;
 
     [UnmanagedFunctionPointer(CallingConvention.ThisCall)]
     public delegate void RefreshLateAndFarLevelsDelegate(IntPtr self);
@@ -17,12 +18,52 @@ public sealed class SplitScreenStreaming : Script
 
     public override void Main()
     {
+        PatchOctreeCapacity();
+
         _refreshLateAndFarLevelsOriginal = DetourUtil.NewDetour<RefreshLateAndFarLevelsDelegate>(
             RefreshLateAndFarLevelsOffset,
             RefreshLateAndFarLevelsDetour
         );
 
         base.Main();
+    }
+
+    private static unsafe void PatchOctreeCapacity()
+    {
+        // push 4E20h ; push 2EE0h ; call (E8) -- octree ctor call site.
+        ReadOnlySpan<byte> expected =
+        [
+            0x68, 0x20, 0x4E, 0x00, 0x00,
+            0x68, 0xE0, 0x2E, 0x00, 0x00,
+            0xE8,
+        ];
+
+        var addr = MemUtil.GetPointer<byte>(OctreeCapacityCallSiteOffset);
+
+        for (var i = 0; i < expected.Length; i++)
+        {
+            if (addr[i] != expected[i])
+            {
+                Debug.LogWarning("Octree capacity patch: unexpected bytes at call site, skipping");
+                return;
+            }
+        }
+
+        if (!PInvoke.VirtualProtect((IntPtr)addr, 10, 0x40, out var oldProtect))
+        {
+            Debug.LogWarning("Octree capacity patch: VirtualProtect failed");
+            return;
+        }
+
+        // pool B (4E20h) -> FFFF (65535); pool A (2EE0h) -> 4000 (16384).
+        addr[1] = 0xFF;
+        addr[2] = 0xFF;
+        addr[6] = 0x00;
+        addr[7] = 0x40;
+
+        PInvoke.VirtualProtect((IntPtr)addr, 10, oldProtect, out _);
+
+        Debug.Log("Octree pools raised: leaf 20000->65535, branch 12000->16384");
     }
 
     public override void OnTick()
