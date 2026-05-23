@@ -48,6 +48,19 @@ public class SplitScreen : Script
                 pawn.Rotation = player1.Rotation;
             }
         }
+        else if (key == Keys.Y)
+        {
+            var player2 = Game.GetPlayerPawn(1);
+
+            // Teleport players to P2
+            var engine = Game.GetEngine();
+            foreach (var player in engine.GamePlayers)
+            {
+                var pawn = player.Actor.Pawn;
+                pawn.Location = player2.Location;
+                pawn.Rotation = player2.Rotation;
+            }
+        }
         else if (key == Keys.O)
         {
             var engine = Game.GetEngine();
@@ -123,6 +136,7 @@ public class SplitScreen : Script
         {
             var pawn = Game.GetPlayerPawn(i);
             pawn.SetLocationIgnoringCollision(self.Location);
+            pawn.SetRotation(self.Rotation);
             pawn.Velocity = default;
         }
     }
@@ -147,6 +161,7 @@ public class SplitScreen : Script
         {
             var pawn = Game.GetPlayerPawn(i);
             pawn.SetLocationIgnoringCollision(Pos);
+            pawn.SetRotation(Rot);
             pawn.Velocity = default;
         }
     }
