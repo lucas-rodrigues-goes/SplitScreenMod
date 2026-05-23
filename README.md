@@ -3,7 +3,7 @@
 <img width="910" height="512" alt="image2" src="https://github.com/user-attachments/assets/6c79721c-43c1-4f48-bd84-215023368ea3" />
 
 ## 📖 About
-Adds support for 4-player split-screen to Batman: Arkham City, allowing you to play through the main story and challenge maps with multiple players.
+Adds support for 2-player split-screen to Batman: Arkham City, allowing you to play through the main story and challenge maps with multiple players.
 
 ## ⚠️ Warning (important)
 
@@ -20,3 +20,4 @@ Follow these steps to set up the mod for the first time:
 - G: Add a player
 - O: Remove a player
 - T: Teleport all players to P1
+- Y: Teleport all players to P2
