@@ -5,18 +5,20 @@
 ## 📖 About
 Adds support for 2-player split-screen to Batman: Arkham City, allowing you to play through the main story and challenge maps with multiple players.
 
-## ⚠️ Warning (important)
+## ⚠️ Warning
 
-This is an early in-development version of the split-screen mod. There are currently several things that can break during the campaign, especially if P2 triggers them instead of P1. If this happens, it's recommended that you restart from checkpoint or use the ghost/teleport keybinds to get past it.
+This is an early in-development version of the split-screen mod. Several things can break during the campaign, especially if P2 triggers certain actions instead of P1. If this happens, restart from checkpoint or use the ghost/teleport keybinds to get past it.
 
 ## 🚀 Getting started
 Follow these steps to set up the mod for the first time:
 1. Install [BmSDK](https://github.com/etkramer/BmSDK#-getting-started)
 2. Download the latest .zip from [here](https://github.com/etkramer/SplitScreenMod/archive/refs/heads/main.zip) and extract it into `%GameDir%\BmGame\Mods`
 3. If you've done everything right, your `Mods` folder should now have a `SplitScreenMod-main` folder inside it
-5. Done! Start the game as usual, then press "G" from the menu to add a new player
+4. Done! Start the game as usual, then press "G" from the menu to add a new player
 
 ## 🎮 Controls
+Like normal the first controller plugged in is used for P1 (auto-swaps with keyboard/mouse), so P2 needs a second controller.
+
 - G: Add a player
 - O: Remove a player
 - T: Teleport all players to P1 (if you get stuck)
