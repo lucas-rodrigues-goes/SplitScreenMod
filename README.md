@@ -24,3 +24,11 @@ Like normal the first controller plugged in is used for P1 (auto-swaps with keyb
 - T: Teleport all players to P1 (if you get stuck)
 - Y: Teleport all players to P2 (if you get stuck)
 - V: Toggle ghost (if you get stuck)
+
+## 🛠️ Troubleshooting
+
+If you run into issues getting the mod to work (i.e. the game crashes on startup, "G" doesn't work), try these steps:
+1. Make sure you followed the install instructions exactly (for this and BmSDK)
+2. If you're on Steam, double-check that you installed the BmSDK compatability patch
+3. If you're on Steam and still nothing happens when you press a key, try running BatmanAC.exe directly instead of starting through Steam
+4. Make sure you're using DX11 mode - you can change this in the Arkham City Launcher. If the launcher doesn't work for you, you can try the [Advanced Launcher](https://www.nexusmods.com/batmanarkhamcity/mods/406) instead
